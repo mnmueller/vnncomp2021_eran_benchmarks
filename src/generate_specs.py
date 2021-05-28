@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 from torchvision import transforms, datasets
 import os
+import onnxruntime as rt
 
 
 def write_vnn_spec(dataset, index, eps, dir_path="./", prefix="spec", data_lb=0, data_ub=1, n_class=10):
@@ -49,7 +50,7 @@ def get_sample_idx(n, block=True, seed=42, n_max=10000, start_idx=None):
         idx += list(np.arange(0,n-len(idx)))
     else:
         idx = list(np.random.choice(n_max,n,replace=False))
-    return np.array(idx)
+    return idx
 
 
 def get_cifar10():
@@ -72,6 +73,9 @@ def main():
     parser.add_argument('--block', action="store_true", default=False, help='Generate specs in a block')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for idx generation')
     parser.add_argument('--start_idx', type=int, default=None, help='Enforce block mode and return deterministic indices')
+    parser.add_argument("--network", type=str, default=None, help="Network to evaluate as .onnx file.")
+    parser.add_argument('--mean', nargs='+', type=float, default=0.0, help='the mean used to normalize the data with')
+    parser.add_argument('--std', nargs='+', type=float, default=1.0, help='the standard deviation used to normalize the data with')
     args = parser.parse_args()
 
     if args.start_idx is not None:
@@ -85,11 +89,42 @@ def main():
     else:
         assert False, "Unkown dataset" # Should be unreachable
 
+    if args.network is not None:
+        sess = rt.InferenceSession(args.network)
+        input_name = sess.get_inputs()[0].name
+
+        mean = np.array(args.mean).reshape((1,-1,1,1)).astype(np.float32)
+        std = np.array(args.std).reshape((1,-1,1,1)).astype(np.float32)
+
     idxs = get_sample_idx(args.n, block=args.block, seed=args.seed, n_max=len(dataset), start_idx=args.start_idx)
     spec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../specs", args.dataset)
-    for idx in idxs:
-        write_vnn_spec(dataset, idx, args.epsilon, dir_path=spec_path, prefix=args.dataset + "_spec", data_lb=0, data_ub=1, n_class=10)
 
+    i = 0
+    ii = 1
+    while i<len(idxs):
+        idx = idxs[i]
+        i += 1
+        if args.network is not None:
+            x, y = dataset[idx]
+            x = x.unsqueeze(0).numpy().astype(np.float32)
+            x = (x-mean)/std
+            pred_onx = sess.run(None, {input_name: x})[0]
+            y_pred = np.argmax(pred_onx, axis=-1)
+
+        if args.network is None or all(y == y_pred):
+            write_vnn_spec(dataset, idx, args.epsilon, dir_path=spec_path, prefix=args.dataset + "_spec", data_lb=0, data_ub=1, n_class=10)
+        else:
+            if len(idxs) < len(dataset): # only sample idxs while there are still new samples to be found
+                if args.block: # if we want samples in a block, just get the next one
+                    idxs.append(*get_sample_idx(1, True, n_max=len(dataset), start_idx=idxs[-1]+1))
+                else: # otherwise sample deterministicly (for given seed) until we find a new sample
+                    tmp_idx = get_sample_idx(1, False, seed=args.seed+ii, n_max=len(dataset))
+                    ii += 1
+                    while tmp_idx in idxs:
+                        tmp_idx = get_sample_idx(1, False, seed=args.seed + ii, n_max=len(dataset))
+                        ii += 1
+                    idxs.append(tmp_idx)
+    print(f"{len(idxs)-args.n} samples were misclassified and replacement samples drawn.")
 
 if __name__ == "__main__":
     main()

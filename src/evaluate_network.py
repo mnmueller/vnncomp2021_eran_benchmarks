@@ -46,7 +46,7 @@ def main():
         pred_onx = sess.run(None, {input_name: x})[0]
         acc += (y == np.argmax(pred_onx,axis=-1)).sum()
         if args.debug:
-            print(pred_onx)
+            print(f"Sample idx {idx}, predicted class: {int(np.argmax(pred_onx,axis=-1))}, true class {y}:\n", pred_onx)
     print(f"Accuracy: {acc}/{len(idxs)}")
 
 if __name__ == "__main__":

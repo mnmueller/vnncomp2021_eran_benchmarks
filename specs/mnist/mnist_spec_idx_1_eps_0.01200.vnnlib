@@ -2369,12 +2369,14 @@
 (assert (>= X_783 0.00000000))
 
 ; Definition of output constraints
-(assert (>= Y_0 Y_2))
-(assert (>= Y_1 Y_2))
-(assert (>= Y_3 Y_2))
-(assert (>= Y_4 Y_2))
-(assert (>= Y_5 Y_2))
-(assert (>= Y_6 Y_2))
-(assert (>= Y_7 Y_2))
-(assert (>= Y_8 Y_2))
-(assert (>= Y_9 Y_2))
+(assert (or
+	(and (>= Y_0 Y_2))
+	(and (>= Y_1 Y_2))
+	(and (>= Y_3 Y_2))
+	(and (>= Y_4 Y_2))
+	(and (>= Y_5 Y_2))
+	(and (>= Y_6 Y_2))
+	(and (>= Y_7 Y_2))
+	(and (>= Y_8 Y_2))
+	(and (>= Y_9 Y_2))
+))

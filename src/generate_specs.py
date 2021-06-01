@@ -32,9 +32,11 @@ def write_vnn_spec(dataset, index, eps, dir_path="./", prefix="spec", data_lb=0,
             f.write(f"(assert (>= X_{i} {x_lb[i]:.8f}))\n")
 
         f.write(f"\n; Definition of output constraints\n")
+        f.write(f"(assert (or\n")
         for i in range(n_class):
             if i == y: continue
-            f.write(f"(assert (>= Y_{i} Y_{y}))\n")
+            f.write(f"\t(and (>= Y_{i} Y_{y}))\n")
+        f.write(f"))\n")
     return spec_path
 
 
